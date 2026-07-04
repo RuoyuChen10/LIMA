@@ -40,6 +40,7 @@ do
     --lambda3 $lambda3 \
     --lambda4 $lambda4 \
     --pending-samples $pending_samples \
+    --record-counterfactual \
     --save-dir $save_dir \
     --begin $begin \
     --end $end &

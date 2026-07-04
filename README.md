@@ -129,7 +129,7 @@ submodular_results/.../<configuration>/
 
 The JSON includes `consistency_score` and `collaboration_score`, consumed by the faithfulness evaluator.
 
-The `*_debug.sh` scripts use `_false.txt` splits to explain prediction errors. Despite their historical name, these are inference experiments, not debugger utilities.
+The `*_debug.sh` scripts use `_false.txt` splits to explain prediction errors. Despite their historical name, these are inference experiments, not debugger utilities. The EfficientV2 CLIP ViT-L, ImageBind, and LanguageBind debug scripts enable `--record-counterfactual`: the search remains targeted at the ground-truth class, while each JSON also records `gt_label`, `gt_class_name`, `failure_label`, `failure_class_name`, the original GT/failure scores, and a `failure_score` trajectory aligned with `consistency_score`. Here, the failure class is the model's top-1 prediction on the original misclassified image.
 
 ## Evaluation
 

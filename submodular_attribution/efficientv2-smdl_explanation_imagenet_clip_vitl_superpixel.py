@@ -91,6 +91,9 @@ def parse_args():
     parser.add_argument('--save-dir', 
                         type=str, default='./submodular_results/imagenet-clip-vitl-efficientv2/',
                         help='output directory to save results')
+    parser.add_argument('--record-counterfactual',
+                        action='store_true',
+                        help='record the original top-1 failure class and its score trajectory')
     args = parser.parse_args()
     return args
 
@@ -147,7 +150,9 @@ def main(args):
         lambda2=args.lambda2, 
         lambda3=args.lambda3, 
         lambda4=args.lambda4,
-        pending_samples=args.pending_samples)
+        pending_samples=args.pending_samples,
+        record_counterfactual=args.record_counterfactual,
+        class_names=imagenet_classes)
     
     with open(args.eval_list, "r") as f:
         infos = f.read().split('\n')
