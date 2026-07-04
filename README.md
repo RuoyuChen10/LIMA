@@ -1,9 +1,15 @@
-# LiMA: Less is More for Attribution
+# LIMA: Less is More for Attribution
 
 Official PyTorch implementation of **[Less is More: Efficient Black-box Attribution via Minimal Interpretable Subset Selection](https://arxiv.org/abs/2504.00470)**.
 
 [![arXiv](https://img.shields.io/badge/arXiv-2504.00470-b31b1b.svg)](https://arxiv.org/abs/2504.00470)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+<p align="center">
+  <img src="figures/overview.jpg" alt="Overview of LiMA across single-modal and multimodal models" width="100%">
+</p>
+
+<p align="center"><em>LiMA consistently identifies compact, faithful evidence across single-modal and multimodal models, for both correct and mistaken predictions.</em></p>
 
 LiMA (**Less input is More faithful for Attribution**) formulates black-box attribution as submodular subset selection. It ranks interpretable input regions with bidirectional greedy search and requires model outputs rather than gradients. Across eight foundation models, the paper reports average improvements of 36.3% in Insertion and 39.6% in Deletion, and a 1.6x speedup over naive greedy search.
 
