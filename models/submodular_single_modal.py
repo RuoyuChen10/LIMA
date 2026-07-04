@@ -170,7 +170,9 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
                  lambda2 = 5.0,     # colla.
                  lambda3 = 0.01,    # confidence
                  device = "cuda",
-                 pending_samples = 8):
+                 pending_samples = 8,
+                 record_counterfactual = False,
+                 class_names = None):
         super(BlackBoxSingleModalSubModularExplanationEfficient, self).__init__(
             k = k,
             model = model,
@@ -182,6 +184,8 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
         
         # Parameters of the submodular
         self.pending_samples = pending_samples
+        self.record_counterfactual = record_counterfactual
+        self.class_names = class_names
         
     def evaluation_maximun_sample(self, 
                                   main_set, 
@@ -212,6 +216,8 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
         with torch.no_grad():
             # 1. Consistency Score
             score_consistency = self.proccess_compute_consistency_score(batch_input_images)
+            if self.record_counterfactual:
+                score_failure = self.predicted_scores[:, self.failure_label]
             
             # 3. Confidence Score
             score_confidence = self.proccess_compute_confidence_score()
@@ -232,6 +238,8 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
             
             self.saved_json_file["confidence_score_increase"].append(score_confidence[arg_max_index].cpu().item())
             self.saved_json_file["consistency_score_increase"].append(score_consistency[arg_max_index].cpu().item())
+            if self.record_counterfactual:
+                self.saved_json_file["failure_score_increase"].append(score_failure[arg_max_index].cpu().item())
             self.saved_json_file["collaboration_score_increase"].append(score_collaboration[arg_max_index].cpu().item())
             self.saved_json_file["smdl_score"].append(smdl_score[arg_max_index].cpu().item())
 
@@ -267,6 +275,8 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
                 
                 # 2. Collaboration Score
                 score_collaboration_decrease = 1 - self.proccess_compute_consistency_score(sub_images_decrease_reverse.to(self.device))
+                if self.record_counterfactual:
+                    score_failure_decrease = self.predicted_scores[:, self.failure_label]
                 
                 smdl_score_decrease = self.lambda1 * score_consistency_decrease + self.lambda2 * score_collaboration_decrease + self.lambda3 * score_confidence_decrease
                 
@@ -276,6 +286,8 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
 
                 self.saved_json_file["confidence_score_decrease"].append(score_confidence_decrease[arg_min_index].cpu().item())
                 self.saved_json_file["consistency_score_decrease"].append(1-score_collaboration_decrease[arg_min_index].cpu().item())
+                if self.record_counterfactual:
+                    self.saved_json_file["failure_score_decrease"].append(score_failure_decrease[arg_min_index].cpu().item())
                 self.saved_json_file["collaboration_score_decrease"].append(1-score_consistency_decrease[arg_min_index].cpu().item())
 
         return sub_index_sets[arg_max_index], decrease_set
@@ -300,6 +312,10 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
         self.saved_json_file["lambda1"] = self.lambda1
         self.saved_json_file["lambda2"] = self.lambda2
         self.saved_json_file["lambda3"] = self.lambda3
+        if self.record_counterfactual:
+            self.saved_json_file["failure_score"] = []
+            self.saved_json_file["failure_score_increase"] = []
+            self.saved_json_file["failure_score_decrease"] = []
     
     def get_merge_set(self, partition):
         """
@@ -331,11 +347,15 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
             ),
         ])
         scores = self.proccess_compute_consistency_score(sub_images.to(self.device))
+        if self.record_counterfactual:
+            failure_scores = self.predicted_scores[:, self.failure_label]
         
         self.saved_json_file["org_score"] = scores[0].cpu().item()
         self.saved_json_file["baseline_score"] = scores[1].cpu().item()
         
         self.saved_json_file["consistency_score"] = self.saved_json_file["consistency_score_increase"] + self.saved_json_file["consistency_score_decrease"][::-1] + [scores[0].cpu().item()]
+        if self.record_counterfactual:
+            self.saved_json_file["failure_score"] = self.saved_json_file["failure_score_increase"] + self.saved_json_file["failure_score_decrease"][::-1] + [failure_scores[0].cpu().item()]
         self.saved_json_file["collaboration_score"] = self.saved_json_file["collaboration_score_increase"] + self.saved_json_file["collaboration_score_decrease"][::-1] + [1-scores[1].cpu().item()]
         
         Subset = np.concatenate((Subset, Subset_decrease[::-1]))
@@ -355,6 +375,18 @@ class BlackBoxSingleModalSubModularExplanationEfficient(BlackBoxSingleModalSubMo
         source_image = self.preproccessing_function(self.org_img)
 
         self.target_label = id
+        if self.record_counterfactual:
+            with torch.no_grad():
+                source_scores = torch.softmax(
+                    self.model(source_image.unsqueeze(0).to(self.device)), dim=-1
+                )
+            self.failure_label = source_scores.argmax(dim=-1).item()
+            self.saved_json_file["gt_label"] = int(self.target_label)
+            self.saved_json_file["failure_label"] = int(self.failure_label)
+            self.saved_json_file["gt_class_name"] = self.class_names[self.target_label] if self.class_names is not None else None
+            self.saved_json_file["failure_class_name"] = self.class_names[self.failure_label] if self.class_names is not None else None
+            self.saved_json_file["original_gt_score"] = source_scores[0, self.target_label].cpu().item()
+            self.saved_json_file["original_failure_score"] = source_scores[0, self.failure_label].cpu().item()
         
         Subset_merge = np.array(image_set)
         Submodular_Subset = self.get_merge_set(Subset_merge)  # array([17, 42, 49, ...])
