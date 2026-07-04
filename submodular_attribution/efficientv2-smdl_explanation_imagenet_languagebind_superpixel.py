@@ -183,6 +183,7 @@ def main(args):
 
     else:
         semantic_feature = zeroshot_classifier(model, imagenet_classes, imagenet_templates, tokenizer, device)
+        os.makedirs(os.path.dirname(semantic_path), exist_ok=True)
         torch.save(semantic_feature, semantic_path)
     
     

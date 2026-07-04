@@ -136,6 +136,20 @@ def transform_vision_data(image):
     image = data_transform(image)
     return image
 
+def zeroshot_classifier(model, classnames, templates, device):
+    with torch.no_grad():
+        zeroshot_weights = []
+        for classname in tqdm(classnames):
+            texts = [template.format(classname) for template in templates]
+            texts = data.load_and_transform_text(texts, device)
+            class_embeddings = model({"text": texts})["text"]
+            class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
+            class_embedding = class_embeddings.mean(dim=0)
+            class_embedding /= class_embedding.norm()
+            zeroshot_weights.append(class_embedding)
+        zeroshot_weights = torch.stack(zeroshot_weights).to(device)
+    return zeroshot_weights
+
 def main(args):
     # Model Init
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -151,6 +165,12 @@ def main(args):
     if os.path.exists(semantic_path):
         semantic_feature = torch.load(semantic_path, map_location="cpu")
         semantic_feature = semantic_feature.to(device)
+    else:
+        semantic_feature = zeroshot_classifier(
+            model, imagenet_classes, imagenet_templates, device
+        ) * 100
+        os.makedirs(os.path.dirname(semantic_path), exist_ok=True)
+        torch.save(semantic_feature, semantic_path)
     
     smdl = MultiModalSubModularExplanationEfficientV2(
         vis_model, semantic_feature, transform_vision_data, device=device, 
