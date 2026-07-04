@@ -31,7 +31,7 @@ do
         end=$((begin + line_count_per_gpu))
     fi
 
-    CUDA_VISIBLE_DEVICES=$device python -m submodular_attribution.efficientv2-smdl_explanation_imagenet_clip_segment_anything \
+    CUDA_VISIBLE_DEVICES=$device python -m submodular_attribution.efficientv2-smdl_explanation_imagenet_clip_vitl_segment_anything \
     --Datasets $dataset \
     --eval-list $eval_list \
     --lambda1 $lambda1 \

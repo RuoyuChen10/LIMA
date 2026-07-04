@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments and tooling
+.venv/
+venv/
+env/
+.conda/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Downloads, checkpoints, and local caches
+.cache/
+.checkpoints/
+ckpt/
+checkpoints/
+*.ckpt
+*.pth
+*.pt
+
+# Dataset payloads (split/index text files remain tracked)
+datasets/imagenet/ILSVRC2012_img_val/
+datasets/vggsound/test/
+datasets/medical_lung/lung_dataset/
+
+# Experiment outputs
+submodular_results*/
+explanation_results*/
+explanation_insertion_results*/
+results/
+outputs/
+logs/
+*.log
+*.npy
+*.npz
+*.gif
