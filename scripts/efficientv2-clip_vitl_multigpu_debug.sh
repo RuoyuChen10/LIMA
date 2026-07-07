@@ -9,7 +9,7 @@ lambda3=10
 lambda4=1
 pending_samples=8
 
-declare -a cuda_devices=("0" "1")
+declare -a cuda_devices=("4" "5" "6" "7")
 
 # GPU numbers
 gpu_numbers=${#cuda_devices[@]}
