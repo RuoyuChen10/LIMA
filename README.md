@@ -168,6 +168,12 @@ python -m evals.evaluation_mistake_debug_ours
 
 It reports the highest target confidence and retained-input percentage. The CNN counterpart is `evaluation_mistake_debug_ours_cnn.py`.
 
+Failure attribution visualizations can be rendered with `visualization/vis_failure_attribution_diverging.py`. The plot compares GT and wrong-class insertion curves and highlights the selected search region.
+
+<p align="center">
+  <img src="figures/failure_attribution_diverging.png" alt="Failure attribution visualization" width="100%">
+</p>
+
 ## Baselines
 
 The baseline pipeline has three stages:
