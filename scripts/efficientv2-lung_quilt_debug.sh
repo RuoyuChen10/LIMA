@@ -21,9 +21,43 @@ lambda4="${LAMBDA4:-1}"
 pending_samples="${PENDING_SAMPLES:-8}"
 conda_env="${CONDA_ENV:-lima}"
 
+find_conda() {
+    local candidate
+
+    if [[ -n "${CONDA_BIN:-}" ]]; then
+        [[ -x "$CONDA_BIN" ]] || {
+            echo "CONDA_BIN is not executable: $CONDA_BIN" >&2
+            return 1
+        }
+        printf '%s\n' "$CONDA_BIN"
+        return
+    fi
+
+    if command -v conda >/dev/null 2>&1; then
+        command -v conda
+        return
+    fi
+
+    for candidate in \
+        "${CONDA_EXE:-}" \
+        "${HOME:-}/anaconda3/bin/conda" \
+        "${HOME:-}/miniconda3/bin/conda" \
+        "/opt/conda/bin/conda"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done
+
+    echo "Conda was not found. Set CONDA_BIN=/absolute/path/to/conda." >&2
+    return 1
+}
+
+conda_bin="$(find_conda)"
+
 echo "Running lung/Quilt counterfactual attribution on GPU ${cuda_device}, samples [${begin}, ${end})."
 
-CUDA_VISIBLE_DEVICES="$cuda_device" conda run --no-capture-output -n "$conda_env" \
+CUDA_VISIBLE_DEVICES="$cuda_device" "$conda_bin" run --no-capture-output -n "$conda_env" \
 python -m submodular_attribution.efficientv2-smdl_explanation_lung_quilt_superpixel \
     --Datasets "$dataset" \
     --eval-list "$eval_list" \
