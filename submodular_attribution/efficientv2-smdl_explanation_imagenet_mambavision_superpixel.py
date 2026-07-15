@@ -114,7 +114,9 @@ class MambaVision_Super(torch.nn.Module):
 
 def main(args):
     # Model Init
-    device = "cuda:1" if torch.cuda.is_available() else "cpu"
+    # CUDA_VISIBLE_DEVICES is set by the launcher, so the selected physical GPU
+    # is exposed to this process as logical device 0.
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # Instantiate model
     model = AutoModelForImageClassification.from_pretrained("nvidia/MambaVision-L2-1K", trust_remote_code=True)
     

@@ -89,6 +89,10 @@ def parse_args():
     parser.add_argument('--save-dir', 
                         type=str, default='./submodular_results/imagenet-vitl-efficient/',
                         help='output directory to save results')
+    parser.add_argument('--checkpoint',
+                        type=str,
+                        default='ckpt/pytorch_model/vit_large_patch16_224_pretrained.pth',
+                        help='ViT-L checkpoint path')
     parser.add_argument('--record-counterfactual',
                         action='store_true',
                         help='record the original top-1 failure class and its score trajectory')
@@ -111,7 +115,7 @@ def main(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # Instantiate model
     vis_model = timm.create_model('vit_large_patch16_224', pretrained=False)
-    vis_model.load_state_dict(torch.load('ckpt/pytorch_model/vit_large_patch16_224_pretrained.pth'))  # 加载本地权重
+    vis_model.load_state_dict(torch.load(args.checkpoint))  # 加载本地权重
     vis_model.eval()
     vis_model.to(device)
     print("load ViT-L model")

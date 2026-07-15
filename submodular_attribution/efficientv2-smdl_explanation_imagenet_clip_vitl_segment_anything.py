@@ -31,6 +31,7 @@ import clip
 
 import torch
 from torchvision import transforms
+from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
 red_tr = get_alpha_cmap('Reds')
 
@@ -61,11 +62,19 @@ def parse_args():
                         type=str,
                         default='datasets/imagenet/val_clip_vitl_5k_true.txt',
                         help='Datasets.')
-    parser.add_argument('--superpixel-algorithm',
+    parser.add_argument('--sam-model-type',
                         type=str,
-                        default="slico",
-                        choices=["slico", "seeds"],
-                        help="")
+                        default="vit_h",
+                        choices=["vit_h", "vit_l", "vit_b"],
+                        help='SAM model type.')
+    parser.add_argument('--sam-checkpoint',
+                        type=str,
+                        default='ckpt/pytorch_model/sam_vit_h_4b8939.pth',
+                        help='SAM checkpoint path.')
+    parser.add_argument('--sam-stability-score-thresh',
+                        type=float,
+                        default=0.8,
+                        help='SAM automatic mask stability score threshold.')
     parser.add_argument('--lambda1', 
                         type=float, default=0.,
                         help='')
@@ -82,6 +91,10 @@ def parse_args():
                         type=int,
                         default=8,
                         help='')
+    parser.add_argument('--pending-samples-rate',
+                        type=float,
+                        default=None,
+                        help='If set, override pending samples per image as ceil(num_sam_regions * rate).')
     parser.add_argument('--begin', 
                         type=int, default=0,
                         help='')
@@ -91,8 +104,48 @@ def parse_args():
     parser.add_argument('--save-dir', 
                         type=str, default='./submodular_results/imagenet-clip-vitl-efficientv2/',
                         help='output directory to save results')
+    parser.add_argument('--record-counterfactual',
+                        action='store_true',
+                        help='record the original top-1 failure class and its score trajectory')
     args = parser.parse_args()
     return args
+
+def processing_sam_concepts(sam_masks, image):
+    """
+    Process SAM masks into non-overlapping concept images.
+    """
+    if len(sam_masks) == 0:
+        return [image]
+
+    mask_sets_V = [mask['segmentation'].astype(np.uint8) for mask in sam_masks]
+    num = len(mask_sets_V)
+
+    for i in range(num - 1):
+        for j in range(i + 1, num):
+            intersection_region = (mask_sets_V[i] + mask_sets_V[j] == 2).astype(np.uint8)
+            if intersection_region.sum() == 0:
+                continue
+
+            proportion_1 = intersection_region.sum() / max(mask_sets_V[i].sum(), 1)
+            proportion_2 = intersection_region.sum() / max(mask_sets_V[j].sum(), 1)
+            if proportion_1 > proportion_2:
+                mask_sets_V[j] -= intersection_region
+            else:
+                mask_sets_V[i] -= intersection_region
+
+    element_sets_V = []
+    for mask in mask_sets_V:
+        if mask.mean() > 0.0005:
+            element_sets_V.append(image * mask[:, :, np.newaxis])
+
+    if len(element_sets_V) == 0:
+        return [image]
+
+    residual = image - np.array(element_sets_V).sum(0).astype(np.uint8)
+    if residual.mean() > 0:
+        element_sets_V.append(residual)
+
+    return element_sets_V
 
 class CLIPModel_Super(torch.nn.Module):
     def __init__(self, 
@@ -149,6 +202,13 @@ def main(args):
     vis_model.eval()
     vis_model.to(device)
     print("load CLIP model")
+
+    sam = sam_model_registry[args.sam_model_type](checkpoint=args.sam_checkpoint)
+    sam.to(device)
+    mask_generator = SamAutomaticMaskGenerator(
+        sam,
+        stability_score_thresh=args.sam_stability_score_thresh)
+    print("load SAM model")
     
     semantic_path = "ckpt/semantic_features/clip_vitl_imagenet_zeroweights.pt"
     if os.path.exists(semantic_path):
@@ -167,13 +227,18 @@ def main(args):
         lambda2=args.lambda2, 
         lambda3=args.lambda3, 
         lambda4=args.lambda4,
-        pending_samples=args.pending_samples)
+        pending_samples=args.pending_samples,
+        record_counterfactual=args.record_counterfactual,
+        class_names=imagenet_classes)
     
     with open(args.eval_list, "r") as f:
         infos = f.read().split('\n')
     
     mkdir(args.save_dir)
-    save_dir = os.path.join(args.save_dir, "{}-{}-{}-{}-{}-pending-samples-{}".format(args.superpixel_algorithm, args.lambda1, args.lambda2, args.lambda3, args.lambda4, args.pending_samples))  
+    pending_label = args.pending_samples
+    if args.pending_samples_rate is not None:
+        pending_label = "rate-{}".format(args.pending_samples_rate)
+    save_dir = os.path.join(args.save_dir, "SAM-{}-{}-{}-{}-pending-samples-{}".format(args.lambda1, args.lambda2, args.lambda3, args.lambda4, pending_label))
     
     mkdir(save_dir)
     
@@ -183,8 +248,13 @@ def main(args):
     save_json_root_path = os.path.join(save_dir, "json")
     mkdir(save_json_root_path)
     
-    select_infos = infos[args.begin : args.end]
+    end = args.end
+    if end == -1:
+        end = None
+    select_infos = infos[args.begin : end]
     for info in tqdm(select_infos):
+        if not info.strip():
+            continue
         gt_id = info.split(" ")[1]
         
         image_relative_path = info.split(" ")[0]
@@ -203,8 +273,13 @@ def main(args):
         image = cv2.imread(image_path)
         image = cv2.resize(image, (224, 224))
         
-        element_sets_V = SubRegionDivision(image, mode=args.superpixel_algorithm)
+        sam_masks = mask_generator.generate(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        element_sets_V = processing_sam_concepts(sam_masks, image)
         smdl.k = len(element_sets_V)
+        if args.pending_samples_rate is not None:
+            smdl.pending_samples = max(1, int(np.ceil(smdl.k * args.pending_samples_rate)))
+        else:
+            smdl.pending_samples = args.pending_samples
 
     #     start = time.time()
         submodular_image, submodular_image_set, saved_json_file = smdl(element_sets_V, gt_label)
