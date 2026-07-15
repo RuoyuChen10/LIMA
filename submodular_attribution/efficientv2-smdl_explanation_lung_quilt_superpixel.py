@@ -36,6 +36,9 @@ red_tr = get_alpha_cmap('Reds')
 
 from models.submodular_vit_efficient import MultiModalSubModularExplanationEfficientV2
 
+QUILT_MODEL_ID = 'hf-hub:wisdomik/QuiltNet-B-32'
+QUILT_CACHE_DIR = '.checkpoints/QuiltNet-B-32'
+
 data_transform = transforms.Compose(
     [
         transforms.Resize(
@@ -91,15 +94,18 @@ def parse_args():
     parser.add_argument('--save-dir', 
                         type=str, default='./submodular_results/lung-quilt-efficientv2-debug/',
                         help='output directory to save results')
+    parser.add_argument('--record-counterfactual',
+                        action='store_true',
+                        help='record the original top-1 failure class and its score trajectory')
     args = parser.parse_args()
     return args
 
 class QuiltModel_Super(torch.nn.Module):
     def __init__(self, 
-                 download_root=".checkpoints/QuiltNet-B-32",
+                 download_root=QUILT_CACHE_DIR,
                  device = "cuda"):
         super().__init__()
-        self.model, _ = create_model_from_pretrained('hf-hub:wisdomik/QuiltNet-B-32', cache_dir=download_root)
+        self.model, _ = create_model_from_pretrained(QUILT_MODEL_ID, cache_dir=download_root)
         self.device = device
     def forward(self, vision_inputs):
         """
@@ -134,8 +140,11 @@ def main(args):
     vis_model.to(device)
     print("load Quilt-1M model")
     
-    tokenizer = get_tokenizer('hf-hub:wisdomik/QuiltNet-B-32')
-    texts = tokenizer([lc_lung_template + l for l in lc_lung_classes], context_length=77).to(device)
+    tokenizer = get_tokenizer(QUILT_MODEL_ID, QUILT_CACHE_DIR)
+    texts = tokenizer([lc_lung_template + l for l in lc_lung_classes], context_length=77)
+    if isinstance(texts, tuple):
+        texts = texts[0]
+    texts = texts.to(device)
 
     with torch.no_grad():
         semantic_feature = vis_model.model.encode_text(texts) * 10
@@ -146,7 +155,9 @@ def main(args):
         lambda2=args.lambda2, 
         lambda3=args.lambda3, 
         lambda4=args.lambda4,
-        pending_samples=args.pending_samples)
+        pending_samples=args.pending_samples,
+        record_counterfactual=args.record_counterfactual,
+        class_names=lc_lung_classes)
     
     with open(args.eval_list, "r") as f:
         infos = f.read().split('\n')
