@@ -74,7 +74,7 @@ Evaluation lists for each backbone are included, such as `val_clip_vitl_5k_true.
 
 ### VGGSound and LC25000
 
-- Put VGGSound `.flac` files in `datasets/vggsound/test/`.
+- Download the [VGGSound archive](https://one-peace-shanghai.oss-accelerate.aliyuncs.com/one_peace_datasets/vggsound.zip). After extraction, put the VGGSound `.flac` files in `datasets/vggsound/test/`.
 - Put LC25000 lung images in `datasets/medical_lung/lung_dataset/`.
 
 The datasets are not redistributed. Obtain them under their own terms and preserve the filenames in the supplied lists.

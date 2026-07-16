@@ -5,20 +5,21 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-dataset="${DATASET:-datasets/medical_lung/lung_dataset}"
-eval_list="${EVAL_LIST:-datasets/medical_lung/LC25000_lung_quilt_1k_false.txt}"
-save_dir="${SAVE_DIR:-submodular_results/lung-quilt-efficientv2-debug}"
+dataset="${DATASET:-datasets/vggsound/test}"
+eval_list="${EVAL_LIST:-datasets/vggsound/val_languagebind_309_false.txt}"
+save_dir="${SAVE_DIR:-submodular_results/vggsound-languagebind-efficientv2-debug}"
 
 cuda_device="${CUDA_DEVICE:-0}"
 begin="${BEGIN:-0}"
 end="${END:-50}"
 
-superpixel_algorithm="${SUPERPIXEL_ALGORITHM:-slico}"
-lambda1="${LAMBDA1:-0}"
+partition_method="${PARTITION_METHOD:-patch}"
+patch_size="${PATCH_SIZE:-10}"
+lambda1="${LAMBDA1:-0.}"
 lambda2="${LAMBDA2:-0.05}"
-lambda3="${LAMBDA3:-1}"
-lambda4="${LAMBDA4:-1}"
-pending_samples="${PENDING_SAMPLES:-8}"
+lambda3="${LAMBDA3:-20}"
+lambda4="${LAMBDA4:-5}"
+pending_samples="${PENDING_SAMPLES:-20}"
 conda_env="${CONDA_ENV:-lima}"
 
 find_conda() {
@@ -53,15 +54,25 @@ find_conda() {
     return 1
 }
 
+[[ -d "$dataset" ]] || {
+    echo "VGGSound dataset directory not found: $dataset" >&2
+    exit 1
+}
+[[ -f "$eval_list" ]] || {
+    echo "Evaluation list not found: $eval_list" >&2
+    exit 1
+}
+
 conda_bin="$(find_conda)"
 
-echo "Running lung/Quilt counterfactual attribution on GPU ${cuda_device}, samples [${begin}, ${end})."
+echo "Running VGGSound/LanguageBind debug attribution on GPU ${cuda_device}, samples [${begin}, ${end}), ${partition_method} ${patch_size}x${patch_size}."
 
 CUDA_VISIBLE_DEVICES="$cuda_device" "$conda_bin" run --no-capture-output -n "$conda_env" \
-python -m submodular_attribution.efficientv2-smdl_explanation_lung_quilt_superpixel \
+python -m submodular_attribution.vggsound_languagebind \
     --Datasets "$dataset" \
     --eval-list "$eval_list" \
-    --superpixel-algorithm "$superpixel_algorithm" \
+    --partition-method "$partition_method" \
+    --grad-partition-size "$patch_size" \
     --lambda1 "$lambda1" \
     --lambda2 "$lambda2" \
     --lambda3 "$lambda3" \
